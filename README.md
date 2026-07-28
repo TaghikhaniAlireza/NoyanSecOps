@@ -35,13 +35,8 @@ To use NoyanSecOps in your repository, create a workflow file (e.g., `.github/wo
 
 **Important:** The calling workflow must perform the code checkout (`actions/checkout`) with `fetch-depth: 0` before invoking NoyanSecOps. It also requires specific permissions to write security events.
 ```yaml
-name: DevSecOps Pipeline
-
-on:
-  push:
-branches: [ "main", "develop" ]
-  pull_request:
-branches: [ "main" ]
+name: NoyanSecOps
+on: [workflow_dispatch, push]
 
 permissions:
   contents: read
@@ -49,19 +44,18 @@ permissions:
   actions: read
 
 jobs:
-  security-scan:
-name: Run NoyanSecOps
-runs-on: ubuntu-latest
-steps:
-- name: Checkout Repository
-uses: actions/checkout@v4
-with:
-fetch-depth: 0
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-- name: Execute NoyanSecOps Pipeline
-uses: YOUR_GITHUB_USERNAME/NoyanSecOps@v1
-with:
-github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run NoyanSecOps
+        uses: TaghikhaniAlireza/NoyanSecOps@v0.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
 ```
 *(Note: Replace `YOUR_GITHUB_USERNAME` with your actual GitHub username or organization name where this action is published).*
 
