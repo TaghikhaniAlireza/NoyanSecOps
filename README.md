@@ -57,7 +57,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
 ```
-*(Note: Replace `YOUR_GITHUB_USERNAME` with your actual GitHub username or organization name where this action is published).*
 
 ## Artifact Retention
 
