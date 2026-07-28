@@ -1,0 +1,110 @@
+name: 'NoyanSecOps'
+description: 'Ultimate DevSecOps Pipeline: SAST, Secret Scanning, SCA, and IaC Scanning.'
+author: 'NoyanSecOps'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access (usually secrets.GITHUB_TOKEN)'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    # 1. Secret Scan (Gitleaks)
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+        GITLEAKS_ENABLE_SUMMARY: true
+
+    # 2. SAST (Semgrep)
+    - name: Run Semgrep
+      uses: semgrep/semgrep-action@v1
+      with:
+        generateSarif: "1"
+      continue-on-error: true 
+
+    - name: Upload Semgrep SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: semgrep.sarif
+        category: semgrep
+
+    - name: Upload Semgrep Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: semgrep-report
+        path: semgrep.sarif
+        retention-days: 14
+
+    # 3. Filesystem & SCA Scan (Trivy)
+    - name: Run Trivy vulnerability scanner in fs mode
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        format: 'sarif'
+        output: 'trivy.sarif'
+        severity: 'CRITICAL,HIGH'
+        exit-code: "0"
+
+    - name: Upload Trivy SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: trivy.sarif
+        category: trivy
+
+    - name: Upload Trivy Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-report
+        path: trivy.sarif
+        retention-days: 14
+
+    # 4. IaC Scan (Checkov)
+    - name: Run Checkov
+      uses: bridgecrewio/checkov-action@master
+      with:
+        output_format: sarif
+        output_file_path: checkov.sarif
+        soft_fail: true
+
+    - name: Upload Checkov SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: checkov.sarif
+        category: checkov
+
+    - name: Upload Checkov Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: checkov-report
+        path: checkov.sarif
+        retention-days: 14
+
+    # 5. Dockerfile Lint (Hadolint)
+    - name: Run Hadolint
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        recursive: true
+        format: sarif
+        output-file: hadolint.sarif
+        no-fail: true
+        ignore: DL3008,DL3015
+
+    - name: Upload Hadolint SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: hadolint.sarif
+        category: hadolint
+
+    - name: Upload Hadolint Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: hadolint-report
+        path: hadolint.sarif
+        retention-days: 14
