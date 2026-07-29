@@ -1,110 +1,253 @@
 name: 'NoyanSecOps'
-description: 'Ultimate DevSecOps Pipeline: SAST, Secret Scanning, SCA, and IaC Scanning.'
+description: 'Enterprise DevSecOps Pipeline: SAST, SCA, Secrets, IaC and Container Security'
 author: 'NoyanSecOps'
 
 branding:
-  icon: 'shield'
-  color: 'blue'
+  icon: shield
+  color: blue
+
 
 inputs:
+
   github_token:
-    description: 'GitHub token for API access (usually secrets.GITHUB_TOKEN)'
+    description: 'GitHub Token'
     required: true
 
+
+  fail_policy:
+    description: 'Fail pipeline when vulnerabilities are detected'
+    required: false
+    default: 'false'
+
+
+  severity:
+    description: 'Vulnerability severity levels'
+    required: false
+    default: 'CRITICAL,HIGH'
+
+
+  run_gitleaks:
+    description: 'Enable secret scanning'
+    required: false
+    default: 'true'
+
+
+  run_semgrep:
+    description: 'Enable SAST scanning'
+    required: false
+    default: 'true'
+
+
+  run_trivy:
+    description: 'Enable SCA scanning'
+    required: false
+    default: 'true'
+
+
+  run_checkov:
+    description: 'Enable IaC scanning'
+    required: false
+    default: 'true'
+
+
+  run_hadolint:
+    description: 'Enable Dockerfile scanning'
+    required: false
+    default: 'true'
+
+
+  retention_days:
+    description: 'Artifact retention period'
+    required: false
+    default: '14'
+
+
+
 runs:
-  using: "composite"
+
+  using: composite
+
   steps:
-    # 1. Secret Scan (Gitleaks)
-    - name: Run Gitleaks
-      uses: gitleaks/gitleaks-action@v2
-      env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-        GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
-        GITLEAKS_ENABLE_SUMMARY: true
 
-    # 2. SAST (Semgrep)
-    - name: Run Semgrep
-      uses: semgrep/semgrep-action@v1
-      with:
-        generateSarif: "1"
-      continue-on-error: true 
 
-    - name: Upload Semgrep SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v4
-      with:
-        sarif_file: semgrep.sarif
-        category: semgrep
+  # -----------------------------
+  # Prepare Workspace
+  # -----------------------------
 
-    - name: Upload Semgrep Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: semgrep-report
-        path: semgrep.sarif
-        retention-days: 14
+  - name: Create Report Directory
+    shell: bash
+    run: mkdir -p noyansecops-results
 
-    # 3. Filesystem & SCA Scan (Trivy)
-    - name: Run Trivy vulnerability scanner in fs mode
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        format: 'sarif'
-        output: 'trivy.sarif'
-        severity: 'CRITICAL,HIGH'
-        exit-code: "0"
 
-    - name: Upload Trivy SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v4
-      with:
-        sarif_file: trivy.sarif
-        category: trivy
 
-    - name: Upload Trivy Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: trivy-report
-        path: trivy.sarif
-        retention-days: 14
+  # -----------------------------
+  # Gitleaks
+  # -----------------------------
 
-    # 4. IaC Scan (Checkov)
-    - name: Run Checkov
-      uses: bridgecrewio/checkov-action@master
-      with:
-        output_format: sarif
-        output_file_path: checkov.sarif
-        soft_fail: true
+  - name: Secret Scan - Gitleaks
+    if: inputs.run_gitleaks == 'true'
+    uses: gitleaks/gitleaks-action@v2
+    continue-on-error: ${{ inputs.fail_policy != 'true' }}
+    env:
+      GITHUB_TOKEN: ${{ inputs.github_token }}
+      GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+      GITLEAKS_ENABLE_SUMMARY: true
 
-    - name: Upload Checkov SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v4
-      with:
-        sarif_file: checkov.sarif
-        category: checkov
 
-    - name: Upload Checkov Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: checkov-report
-        path: checkov.sarif
-        retention-days: 14
 
-    # 5. Dockerfile Lint (Hadolint)
-    - name: Run Hadolint
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        recursive: true
-        format: sarif
-        output-file: hadolint.sarif
-        no-fail: true
-        ignore: DL3008,DL3015
 
-    - name: Upload Hadolint SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v4
-      with:
-        sarif_file: hadolint.sarif
-        category: hadolint
+  # -----------------------------
+  # Parallel Security Scanning
+  # -----------------------------
 
-    - name: Upload Hadolint Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hadolint-report
-        path: hadolint.sarif
-        retention-days: 14
+  - name: Run Security Scanners
+    shell: bash
+    env:
+      SEVERITY: ${{ inputs.severity }}
+    run: |
+
+      mkdir -p noyansecops-results
+
+
+      if [ "${{ inputs.run_semgrep }}" = "true" ]; then
+
+      semgrep \
+      --config auto \
+      --sarif \
+      --output noyansecops-results/semgrep.sarif \
+      &
+
+      fi
+
+
+
+      if [ "${{ inputs.run_trivy }}" = "true" ]; then
+
+      trivy fs \
+      --severity ${SEVERITY} \
+      --format sarif \
+      --output noyansecops-results/trivy.sarif \
+      .
+
+      fi
+
+
+
+      if [ "${{ inputs.run_checkov }}" = "true" ]; then
+
+      checkov \
+      -d . \
+      --output sarif \
+      --output-file-path noyansecops-results/checkov.sarif
+
+      fi
+
+
+
+      wait
+
+
+
+
+
+  # -----------------------------
+  # Hadolint
+  # -----------------------------
+
+
+  - name: Dockerfile Security Scan
+    if: inputs.run_hadolint == 'true'
+    shell: bash
+    run: |
+
+      hadolint \
+      --format sarif \
+      --output noyansecops-results/hadolint.sarif \
+      Dockerfile || true
+
+
+
+
+  # -----------------------------
+  # Upload SARIF
+  # -----------------------------
+
+
+  - name: Upload SARIF Results
+    uses: github/codeql-action/upload-sarif@v4
+    continue-on-error: true
+    with:
+
+      sarif_file: noyansecops-results/
+
+
+
+
+  # -----------------------------
+  # Upload Artifacts
+  # -----------------------------
+
+
+  - name: Upload Security Reports
+    uses: actions/upload-artifact@v4
+    with:
+
+      name: noyansecops-security-reports
+
+      path: noyansecops-results
+
+      retention-days: ${{ inputs.retention_days }}
+
+
+
+  # -----------------------------
+  # Summary
+  # -----------------------------
+
+
+  - name: Security Summary
+    shell: bash
+    run: |
+
+
+      echo "# 🛡️ NoyanSecOps Security Report" >> $GITHUB_STEP_SUMMARY
+
+      echo "" >> $GITHUB_STEP_SUMMARY
+
+      echo "## Enabled Scanners" >> $GITHUB_STEP_SUMMARY
+
+      echo "- Secrets: ${{ inputs.run_gitleaks }}" >> $GITHUB_STEP_SUMMARY
+
+      echo "- SAST: ${{ inputs.run_semgrep }}" >> $GITHUB_STEP_SUMMARY
+
+      echo "- SCA: ${{ inputs.run_trivy }}" >> $GITHUB_STEP_SUMMARY
+
+      echo "- IaC: ${{ inputs.run_checkov }}" >> $GITHUB_STEP_SUMMARY
+
+      echo "- Docker: ${{ inputs.run_hadolint }}" >> $GITHUB_STEP_SUMMARY
+
+
+
+
+  # -----------------------------
+  # Fail Policy
+  # -----------------------------
+
+
+  - name: Apply Security Gate
+    if: inputs.fail_policy == 'true'
+    shell: bash
+    run: |
+
+
+      if grep -r "CRITICAL\|HIGH" noyansecops-results ; then
+
+        echo "Security policy failed"
+
+        exit 1
+
+      else
+
+        echo "Security policy passed"
+
+      fi
