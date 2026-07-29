@@ -52,7 +52,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run NoyanSecOps
-        uses: TaghikhaniAlireza/NoyanSecOps@v0.1
+        uses: TaghikhaniAlireza/NoyanSecOps@latest
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
