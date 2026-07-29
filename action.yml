@@ -523,3 +523,125 @@ runs:
         sarif_file: noyansecops-results/hadolint.sarif
 
         category: noyansecops-hadolint
+
+# ==================================
+# Upload Security Reports
+# ==================================
+
+    - name: Upload NoyanSecOps Reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+
+        name: noyansecops-security-reports
+
+        path: noyansecops-results/
+
+        retention-days: ${{ inputs.retention_days }}
+
+
+
+# ==================================
+# Security Summary
+# ==================================
+
+    - name: Generate Security Summary
+      if: always()
+      shell: bash
+      run: |
+
+        echo "# 🛡️ NoyanSecOps Security Report" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        echo "## Scanner Status" >> $GITHUB_STEP_SUMMARY
+
+        echo "| Scanner | Status |" >> $GITHUB_STEP_SUMMARY
+
+        echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+
+        echo "| Gitleaks | ${{ inputs.run_gitleaks }} |" >> $GITHUB_STEP_SUMMARY
+
+        echo "| Semgrep | ${{ inputs.run_semgrep }} |" >> $GITHUB_STEP_SUMMARY
+
+        echo "| Trivy | ${{ inputs.run_trivy }} |" >> $GITHUB_STEP_SUMMARY
+
+        echo "| Checkov | ${{ inputs.run_checkov }} |" >> $GITHUB_STEP_SUMMARY
+
+        echo "| Hadolint | ${{ inputs.run_hadolint }} |" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        echo "Severity Policy: ${{ inputs.severity }}" >> $GITHUB_STEP_SUMMARY
+
+        echo "Fail Policy: ${{ inputs.fail_policy }}" >> $GITHUB_STEP_SUMMARY
+
+
+
+
+# ==================================
+# Security Gate
+# ==================================
+
+    - name: Apply NoyanSecOps Security Gate
+      if: inputs.fail_policy == 'true'
+      shell: bash
+      run: |
+
+        echo "Checking SARIF security findings..."
+
+        FAILED=0
+
+
+        for FILE in noyansecops-results/*.sarif
+        do
+
+          if [ -f "$FILE" ]; then
+
+
+            echo "Analyzing $FILE"
+
+
+            RESULT=$(jq '
+
+            [
+              .runs[]
+              .results[]
+              |
+              select(
+                .level == "error" or
+                .level == "warning"
+              )
+            ]
+            |
+            length
+
+            ' "$FILE")
+
+
+            if [ "$RESULT" -gt 0 ]; then
+
+              echo "Security findings detected in $FILE"
+
+              FAILED=1
+
+            fi
+
+
+          fi
+
+        done
+
+
+
+        if [ "$FAILED" -eq 1 ]; then
+
+          echo "❌ NoyanSecOps Security Gate Failed"
+
+          exit 1
+
+        fi
+
+
+
+        echo "✅ NoyanSecOps Security Gate Passed"
