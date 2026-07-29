@@ -130,8 +130,167 @@ runs:
 
         echo "NoyanSecOps v0.2.0"
 
+# ==================================
+# NoyanSecOps Validation Layer
+# ==================================
+
+    - name: Validate NoyanSecOps Configuration
+      shell: bash
+      run: |
+
+        echo "🔎 Starting NoyanSecOps validation..."
+
+        FAILED=0
 
 
+        # ----------------------------
+        # Validate Report Directory
+        # ----------------------------
+
+        if [ ! -d "noyansecops-results" ]; then
+
+          echo "❌ Report directory missing"
+
+          FAILED=1
+
+        else
+
+          echo "✅ Report directory available"
+
+        fi
+
+
+
+        # ----------------------------
+        # Validate Semgrep Config
+        # ----------------------------
+
+        if [ -n "${{ env.SEMGRP_CONFIG }}" ]; then
+
+
+          if [ -f "${{ env.SEMGRP_CONFIG }}" ]; then
+
+            echo "✅ Semgrep config found:"
+            echo "${{ env.SEMGRP_CONFIG }}"
+
+
+          else
+
+            echo "❌ Semgrep config not found:"
+            echo "${{ env.SEMGRP_CONFIG }}"
+
+            FAILED=1
+
+          fi
+
+        fi
+
+
+
+        # ----------------------------
+        # Validate Trivy Config
+        # ----------------------------
+
+        if [ -n "${{ env.TRIVY_CONFIG }}" ]; then
+
+
+          if [ -f "${{ env.TRIVY_CONFIG }}" ]; then
+
+            echo "✅ Trivy config found"
+
+          else
+
+            echo "❌ Trivy config missing"
+
+            FAILED=1
+
+          fi
+
+        fi
+
+
+
+        # ----------------------------
+        # Validate Checkov Config
+        # ----------------------------
+
+        if [ -n "${{ env.CHECKOV_CONFIG }}" ]; then
+
+
+          if [ -f "${{ env.CHECKOV_CONFIG }}" ]; then
+
+            echo "✅ Checkov config found"
+
+          else
+
+            echo "❌ Checkov config missing"
+
+            FAILED=1
+
+          fi
+
+        fi
+
+
+
+        # ----------------------------
+        # Validate Severity Input
+        # ----------------------------
+
+        ALLOWED_LEVELS="CRITICAL HIGH MEDIUM LOW UNKNOWN"
+
+
+        for LEVEL in $(echo "${{ inputs.severity }}" | tr ',' ' ')
+        do
+
+          if [[ ! " ${ALLOWED_LEVELS} " =~ " ${LEVEL} " ]]; then
+
+            echo "❌ Invalid severity value: ${LEVEL}"
+
+            echo "Allowed values:"
+            echo "${ALLOWED_LEVELS}"
+
+            FAILED=1
+
+          fi
+
+        done
+
+
+
+
+        # ----------------------------
+        # Validate Fail Policy
+        # ----------------------------
+
+        if [[ "${{ inputs.fail_policy }}" != "true" &&
+              "${{ inputs.fail_policy }}" != "false" ]];
+
+        then
+
+          echo "❌ fail_policy must be true or false"
+
+          FAILED=1
+
+        fi
+
+
+
+        # ----------------------------
+        # Final Validation Result
+        # ----------------------------
+
+        if [ "$FAILED" -eq 1 ]; then
+
+          echo ""
+          echo "❌ NoyanSecOps validation failed"
+          exit 1
+
+        fi
+
+
+        echo ""
+        echo "✅ NoyanSecOps validation completed successfully"
 
 # ==================================
 # Cache
@@ -302,12 +461,12 @@ runs:
 
         generateSarif: "1"
 
-        config: ${{ env.SEMGRP_CONFIG || 'auto' }}
+        config: ${{ env.SEMGRP_CONFIG != '' && env.SEMGRP_CONFIG || 'p/default' }}
 
 
 
     - name: Upload Semgrep SARIF
-      if: inputs.run_semgrep == 'true'
+      if: always() && inputs.run_semgrep == 'true'
       uses: github/codeql-action/upload-sarif@v4
 
       continue-on-error: true
