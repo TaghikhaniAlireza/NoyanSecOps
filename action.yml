@@ -6,25 +6,21 @@ branding:
   icon: shield
   color: blue
 
-
 inputs:
 
   github_token:
     description: 'GitHub Token for SARIF upload and API access'
     required: true
 
-
   fail_policy:
     description: 'Fail pipeline when security findings are detected'
     required: false
     default: 'false'
 
-
   severity:
     description: 'Security severity levels'
     required: false
     default: 'CRITICAL,HIGH'
-
 
   retention_days:
     description: 'Artifact retention days'
@@ -32,33 +28,25 @@ inputs:
     default: '14'
 
 
-# -----------------------------
-# Scanner Enable / Disable
-# -----------------------------
-
   run_gitleaks:
     description: 'Enable Secret Scanning'
     required: false
     default: 'true'
-
 
   run_semgrep:
     description: 'Enable SAST scanning'
     required: false
     default: 'true'
 
-
   run_trivy:
     description: 'Enable SCA scanning'
     required: false
     default: 'true'
 
-
   run_checkov:
     description: 'Enable IaC scanning'
     required: false
     default: 'true'
-
 
   run_hadolint:
     description: 'Enable Dockerfile scanning'
@@ -66,53 +54,67 @@ inputs:
     default: 'true'
 
 
-
-# -----------------------------
 # Tool Versions
-# -----------------------------
+
+  gitleaks_version:
+    description: 'Gitleaks Action version'
+    required: false
+    default: 'v2'
+
+  semgrep_version:
+    description: 'Semgrep Action version'
+    required: false
+    default: 'v1'
+
+  trivy_action_version:
+    description: 'Trivy Action version'
+    required: false
+    default: 'v0.20.0'
 
   trivy_version:
     description: 'Trivy CLI version'
     required: false
     default: 'v0.36.0'
 
-
   checkov_version:
-    description: 'Checkov version'
+    description: 'Checkov Action version'
     required: false
     default: 'v12.1347.0'
 
+  hadolint_version:
+    description: 'Hadolint Action version'
+    required: false
+    default: 'v3.1.0'
 
 
-# -----------------------------
 # Config Files
-# -----------------------------
-
 
   semgrep_config:
-    description: 'Custom Semgrep config path'
+    description: 'Custom Semgrep config file'
     required: false
-
 
   trivy_config:
-    description: 'Custom Trivy config path'
+    description: 'Custom Trivy config file'
     required: false
 
+  trivy_ignore_file:
+    description: 'Custom Trivy ignore file'
+    required: false
 
   checkov_config:
-    description: 'Custom Checkov config path'
+    description: 'Custom Checkov config file'
     required: false
-
 
   hadolint_config:
-    description: 'Custom Hadolint config path'
+    description: 'Custom Hadolint config file'
     required: false
-
 
 
 runs:
   using: composite
+
   steps:
+
 
 # ==================================
 # Prepare
@@ -122,220 +124,219 @@ runs:
       shell: bash
       run: |
         mkdir -p noyansecops-results
-        echo "NoyanSecOps v0.2.0"
+        echo "NoyanSecOps Security Pipeline Started"
+
 
 
 # ==================================
 # Cache
 # ==================================
 
-
     - name: Cache Trivy Database
       if: inputs.run_trivy == 'true'
       uses: actions/cache@v4
       with:
-
-        path: |
-          ~/.cache/trivy
+        path: ~/.cache/trivy
         key: trivy-${{ runner.os }}-${{ inputs.trivy_version }}
 
 
-
-    - name: Cache Semgrep Rules
+    - name: Cache Semgrep
       if: inputs.run_semgrep == 'true'
       uses: actions/cache@v4
       with:
-        path: |
-          ~/.semgrep
+        path: ~/.semgrep
         key: semgrep-${{ runner.os }}
-
 
 
     - name: Cache Python Packages
       if: inputs.run_checkov == 'true'
       uses: actions/cache@v4
       with:
-        path: |
-          ~/.cache/pip
+        path: ~/.cache/pip
         key: pip-${{ runner.os }}
+
 
 
 # ==================================
 # Config Discovery
 # ==================================
 
-
     - name: Discover Security Config Files
       shell: bash
       run: |
+
         echo "Searching security configuration files..."
-        if [ -z "${{ inputs.semgrep_config }}" ]; then
-          if [ -f ".semgrep.yml" ]; then
-            echo "SEMGRP_CONFIG=.semgrep.yml" >> $GITHUB_ENV
-          elif [ -f ".semgrep.yaml" ]; then
-            echo "SEMGRP_CONFIG=.semgrep.yaml" >> $GITHUB_ENV
-          fi
-        else
+
+
+        if [ -n "${{ inputs.semgrep_config }}" ]; then
           echo "SEMGRP_CONFIG=${{ inputs.semgrep_config }}" >> $GITHUB_ENV
+
+        elif [ -f ".semgrep.yml" ]; then
+          echo "SEMGRP_CONFIG=.semgrep.yml" >> $GITHUB_ENV
+
+        elif [ -f ".semgrep.yaml" ]; then
+          echo "SEMGRP_CONFIG=.semgrep.yaml" >> $GITHUB_ENV
+
+        else
+          echo "SEMGRP_CONFIG=" >> $GITHUB_ENV
         fi
 
 
 
-        if [ -z "${{ inputs.trivy_config }}" ]; then
-          if [ -f "trivy.yaml" ]; then
-            echo "TRIVY_CONFIG=trivy.yaml" >> $GITHUB_ENV
-          elif [ -f ".trivy.yaml" ]; then
-            echo "TRIVY_CONFIG=.trivy.yaml" >> $GITHUB_ENV
-          fi
-        else
+        if [ -n "${{ inputs.trivy_config }}" ]; then
           echo "TRIVY_CONFIG=${{ inputs.trivy_config }}" >> $GITHUB_ENV
+
+        elif [ -f "trivy.yaml" ]; then
+          echo "TRIVY_CONFIG=trivy.yaml" >> $GITHUB_ENV
+
+        elif [ -f ".trivy.yaml" ]; then
+          echo "TRIVY_CONFIG=.trivy.yaml" >> $GITHUB_ENV
+
+        else
+          echo "TRIVY_CONFIG=" >> $GITHUB_ENV
         fi
 
 
 
-        if [ -z "${{ inputs.checkov_config }}" ]; then
-          if [ -f ".checkov.yml" ]; then
-            echo "CHECKOV_CONFIG=.checkov.yml" >> $GITHUB_ENV
-          elif [ -f ".checkov.yaml" ]; then
-            echo "CHECKOV_CONFIG=.checkov.yaml" >> $GITHUB_ENV
-          fi
+        if [ -n "${{ inputs.trivy_ignore_file }}" ]; then
+          echo "TRIVY_IGNORE=${{ inputs.trivy_ignore_file }}" >> $GITHUB_ENV
+
+        elif [ -f ".trivyignore" ]; then
+          echo "TRIVY_IGNORE=.trivyignore" >> $GITHUB_ENV
+
         else
+          echo "TRIVY_IGNORE=" >> $GITHUB_ENV
+        fi
+
+
+
+        if [ -n "${{ inputs.checkov_config }}" ]; then
           echo "CHECKOV_CONFIG=${{ inputs.checkov_config }}" >> $GITHUB_ENV
-        fi
 
+        elif [ -f ".checkov.yml" ]; then
+          echo "CHECKOV_CONFIG=.checkov.yml" >> $GITHUB_ENV
 
+        elif [ -f ".checkov.yaml" ]; then
+          echo "CHECKOV_CONFIG=.checkov.yaml" >> $GITHUB_ENV
 
-        if [ -z "${{ inputs.hadolint_config }}" ]; then
-          if [ -f ".hadolint.yaml" ]; then
-            echo "HADOLINT_CONFIG=.hadolint.yaml" >> $GITHUB_ENV
-          elif [ -f ".hadolint.yml" ]; then
-            echo "HADOLINT_CONFIG=.hadolint.yml" >> $GITHUB_ENV
-          fi
         else
-          echo "HADOLINT_CONFIG=${{ inputs.hadolint_config }}" >> $GITHUB_ENV
+          echo "CHECKOV_CONFIG=" >> $GITHUB_ENV
         fi
+
+
+
+        if [ -n "${{ inputs.hadolint_config }}" ]; then
+          echo "HADOLINT_CONFIG=${{ inputs.hadolint_config }}" >> $GITHUB_ENV
+
+        elif [ -f ".hadolint.yaml" ]; then
+          echo "HADOLINT_CONFIG=.hadolint.yaml" >> $GITHUB_ENV
+
+        elif [ -f ".hadolint.yml" ]; then
+          echo "HADOLINT_CONFIG=.hadolint.yml" >> $GITHUB_ENV
+
+        else
+          echo "HADOLINT_CONFIG=" >> $GITHUB_ENV
+        fi
+
 
 
 # ==================================
-# NoyanSecOps Validation Layer
+# Validation Layer
 # ==================================
 
     - name: Validate NoyanSecOps Configuration
       shell: bash
       run: |
-        echo "🔎 Starting NoyanSecOps validation..."
+
+        echo "Running configuration validation..."
+
         FAILED=0
 
 
-        # ----------------------------
-        # Validate Report Directory
-        # ----------------------------
-
         if [ ! -d "noyansecops-results" ]; then
-          echo "❌ Report directory missing"
+
+          echo "Report directory missing"
+
           FAILED=1
-        else
-          echo "✅ Report directory available"
+
         fi
 
 
 
-        # ----------------------------
-        # Validate Semgrep Config
-        # ----------------------------
-        if [ -n "${{ env.SEMGRP_CONFIG }}" ]; then
-          if [ -f "${{ env.SEMGRP_CONFIG }}" ]; then
-            echo "✅ Semgrep config found:"
-            echo "${{ env.SEMGRP_CONFIG }}"
-          else
-            echo "❌ Semgrep config not found:"
-            echo "${{ env.SEMGRP_CONFIG }}"
-            FAILED=1
-          fi
+        if [ -n "${SEMGRP_CONFIG}" ] && [ ! -f "${SEMGRP_CONFIG}" ]; then
+
+          echo "Semgrep config not found: ${SEMGRP_CONFIG}"
+
+          FAILED=1
+
         fi
 
 
 
-        # ----------------------------
-        # Validate Trivy Config
-        # ----------------------------
+        if [ -n "${TRIVY_CONFIG}" ] && [ ! -f "${TRIVY_CONFIG}" ]; then
 
-        if [ -n "${{ env.TRIVY_CONFIG }}" ]; then
-          if [ -f "${{ env.TRIVY_CONFIG }}" ]; then
-            echo "✅ Trivy config found"
-          else
-            echo "❌ Trivy config missing"
-            FAILED=1
-          fi
+          echo "Trivy config not found: ${TRIVY_CONFIG}"
+
+          FAILED=1
+
         fi
 
 
 
-        # ----------------------------
-        # Validate Checkov Config
-        # ----------------------------
+        if [ -n "${TRIVY_IGNORE}" ] && [ ! -f "${TRIVY_IGNORE}" ]; then
 
-        if [ -n "${{ env.CHECKOV_CONFIG }}" ]; then
-          if [ -f "${{ env.CHECKOV_CONFIG }}" ]; then
-            echo "✅ Checkov config found"
-          else
-            echo "❌ Checkov config missing"
-            FAILED=1
-          fi
+          echo "Trivy ignore file not found: ${TRIVY_IGNORE}"
+
+          FAILED=1
+
         fi
 
 
 
-        # ----------------------------
-        # Validate Severity Input
-        # ----------------------------
+        if [[ "${{ inputs.fail_policy }}" != "true" &&
+              "${{ inputs.fail_policy }}" != "false" ]]; then
 
-        ALLOWED_LEVELS="CRITICAL HIGH MEDIUM LOW UNKNOWN"
+          echo "Invalid fail_policy value"
+
+          FAILED=1
+
+        fi
+
+
+
         for LEVEL in $(echo "${{ inputs.severity }}" | tr ',' ' ')
         do
-          if [[ ! " ${ALLOWED_LEVELS} " =~ " ${LEVEL} " ]]; then
-            echo "❌ Invalid severity value: ${LEVEL}"
-            echo "Allowed values:"
-            echo "${ALLOWED_LEVELS}"
-            FAILED=1
-          fi
+
+          case "$LEVEL" in
+
+            CRITICAL|HIGH|MEDIUM|LOW|UNKNOWN)
+              ;;
+
+            *)
+              echo "Invalid severity: $LEVEL"
+              FAILED=1
+              ;;
+
+          esac
+
         done
 
 
 
-
-        # ----------------------------
-        # Validate Fail Policy
-        # ----------------------------
-
-        if [[ "${{ inputs.fail_policy }}" != "true" &&
-              "${{ inputs.fail_policy }}" != "false" ]];
-        then
-          echo "❌ fail_policy must be true or false"
-          FAILED=1
-        fi
-
-
-
-        # ----------------------------
-        # Final Validation Result
-        # ----------------------------
-
         if [ "$FAILED" -eq 1 ]; then
-          echo ""
-          echo "❌ NoyanSecOps validation failed"
+
+          echo "NoyanSecOps validation failed"
+
           exit 1
+
         fi
 
 
-        echo ""
-        echo "✅ NoyanSecOps validation completed successfully"
-
+        echo "NoyanSecOps validation completed successfully"
 
 # ==================================
 # Secret Scanning - Gitleaks
 # ==================================
-
 
     - name: Run Gitleaks Secret Scan
       if: inputs.run_gitleaks == 'true'
@@ -349,9 +350,8 @@ runs:
 
 
 # ==================================
-# Semgrep SAST
+# SAST - Semgrep
 # ==================================
-
 
     - name: Run Semgrep SAST
       if: inputs.run_semgrep == 'true'
@@ -363,156 +363,163 @@ runs:
 
 
 
+    - name: Move Semgrep SARIF
+      if: always() && inputs.run_semgrep == 'true'
+      shell: bash
+      run: |
+
+        if [ -f "semgrep.sarif" ]; then
+
+          mv semgrep.sarif noyansecops-results/semgrep.sarif
+
+        fi
+
+
+
     - name: Upload Semgrep SARIF
       if: always() && inputs.run_semgrep == 'true'
       uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true
       with:
-        sarif_file: semgrep.sarif
+        sarif_file: noyansecops-results/semgrep.sarif
         category: noyansecops-semgrep
 
 
 
 
-
 # ==================================
-# Trivy SCA
+# SCA - Trivy
 # ==================================
-
 
     - name: Run Trivy Filesystem Scan
       if: inputs.run_trivy == 'true'
       uses: aquasecurity/trivy-action@v0.20.0
-
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
       with:
+
         version: ${{ inputs.trivy_version }}
+
         scan-type: fs
+
         format: sarif
+
         output: noyansecops-results/trivy.sarif
+
         severity: ${{ inputs.severity }}
+
         exit-code: ${{ inputs.fail_policy == 'true' && '1' || '0' }}
+
         ignore-unfixed: true
-        trivyignores: ${{ env.TRIVY_CONFIG }}
+
+        trivyignores: ${{ env.TRIVY_IGNORE }}
+
+
+
+    - name: Run Trivy With Custom Config
+      if: always() && inputs.run_trivy == 'true' && env.TRIVY_CONFIG != ''
+      shell: bash
+      run: |
+
+        trivy fs \
+          --config "${TRIVY_CONFIG}" \
+          --format sarif \
+          --output noyansecops-results/trivy.sarif \
+          .
+
 
 
     - name: Upload Trivy SARIF
-      if: inputs.run_trivy == 'true'
+      if: always() && inputs.run_trivy == 'true'
       uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true
       with:
+
         sarif_file: noyansecops-results/trivy.sarif
+
         category: noyansecops-trivy
 
 
 
 
-
 # ==================================
-# Checkov IaC Scan
+# IaC - Checkov
 # ==================================
 
-
-    - name: Run Checkov IaC Scanner
+    - name: Run Checkov IaC Scan
       if: inputs.run_checkov == 'true'
       uses: bridgecrewio/checkov-action@v12.1347.0
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
       with:
+
         directory: .
+
         output_format: sarif
+
         output_file_path: noyansecops-results/checkov.sarif
+
         soft_fail: ${{ inputs.fail_policy != 'true' }}
+
+        config_file: ${{ env.CHECKOV_CONFIG }}
+
 
 
     - name: Upload Checkov SARIF
-      if: inputs.run_checkov == 'true'
+      if: always() && inputs.run_checkov == 'true'
       uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true
       with:
+
         sarif_file: noyansecops-results/checkov.sarif
+
         category: noyansecops-checkov
 
 
 
+
 # ==================================
-# Hadolint Dockerfile Scan
+# Dockerfile Security - Hadolint
 # ==================================
 
-
-    - name: Run Hadolint Dockerfile Security Scan
+    - name: Detect Dockerfile
       if: inputs.run_hadolint == 'true'
+      shell: bash
+      run: |
+
+        if find . -name "Dockerfile*" | grep -q Dockerfile; then
+
+          echo "DOCKERFILE_EXISTS=true" >> $GITHUB_ENV
+
+        else
+
+          echo "DOCKERFILE_EXISTS=false" >> $GITHUB_ENV
+
+        fi
+
+
+
+
+    - name: Run Hadolint
+      if: inputs.run_hadolint == 'true' && env.DOCKERFILE_EXISTS == 'true'
       uses: hadolint/hadolint-action@v3.1.0
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
       with:
+
         recursive: true
+
         format: sarif
+
         output-file: noyansecops-results/hadolint.sarif
+
         no-fail: ${{ inputs.fail_policy != 'true' }}
 
 
 
     - name: Upload Hadolint SARIF
-      if: inputs.run_hadolint == 'true'
+      if: always() && inputs.run_hadolint == 'true'
       uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true
       with:
+
         sarif_file: noyansecops-results/hadolint.sarif
+
         category: noyansecops-hadolint
-
-
-
-# ==================================
-# Artifact Upload
-# ==================================
-
-
-    - name: Upload NoyanSecOps Reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: noyansecops-security-reports
-        path: noyansecops-results/
-        retention-days: ${{ inputs.retention_days }}
-
-
-
-# ==================================
-# Security Summary
-# ==================================
-
-
-    - name: Generate Security Summary
-      shell: bash
-      run: |
-        echo "# 🛡️ NoyanSecOps Security Report" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## Scanner Status" >> $GITHUB_STEP_SUMMARY
-        echo "| Scanner | Enabled |" >> $GITHUB_STEP_SUMMARY
-        echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Gitleaks | ${{ inputs.run_gitleaks }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Semgrep | ${{ inputs.run_semgrep }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Trivy | ${{ inputs.run_trivy }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Checkov | ${{ inputs.run_checkov }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Hadolint | ${{ inputs.run_hadolint }} |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Severity: ${{ inputs.severity }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Fail Policy: ${{ inputs.fail_policy }}" >> $GITHUB_STEP_SUMMARY
-
-
-
-# ==================================
-# Final Security Gate
-# ==================================
-
-
-    - name: Apply NoyanSecOps Security Gate
-      if: inputs.fail_policy == 'true'
-      shell: bash
-      run: |
-        if grep -r "CRITICAL\|HIGH" noyansecops-results/
-        then
-          echo "❌ Security Gate Failed"
-          exit 1
-        else
-          echo "✅ Security Gate Passed"
-        fi
