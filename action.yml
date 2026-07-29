@@ -111,12 +111,8 @@ inputs:
 
 
 runs:
-
   using: composite
-
-
   steps:
-
 
 # ==================================
 # Prepare
@@ -125,172 +121,9 @@ runs:
     - name: Prepare NoyanSecOps Workspace
       shell: bash
       run: |
-
         mkdir -p noyansecops-results
-
         echo "NoyanSecOps v0.2.0"
 
-# ==================================
-# NoyanSecOps Validation Layer
-# ==================================
-
-    - name: Validate NoyanSecOps Configuration
-      shell: bash
-      run: |
-
-        echo "🔎 Starting NoyanSecOps validation..."
-
-        FAILED=0
-
-
-        # ----------------------------
-        # Validate Report Directory
-        # ----------------------------
-
-        if [ ! -d "noyansecops-results" ]; then
-
-          echo "❌ Report directory missing"
-
-          FAILED=1
-
-        else
-
-          echo "✅ Report directory available"
-
-        fi
-
-
-
-        # ----------------------------
-        # Validate Semgrep Config
-        # ----------------------------
-
-        if [ -n "${{ env.SEMGRP_CONFIG }}" ]; then
-
-
-          if [ -f "${{ env.SEMGRP_CONFIG }}" ]; then
-
-            echo "✅ Semgrep config found:"
-            echo "${{ env.SEMGRP_CONFIG }}"
-
-
-          else
-
-            echo "❌ Semgrep config not found:"
-            echo "${{ env.SEMGRP_CONFIG }}"
-
-            FAILED=1
-
-          fi
-
-        fi
-
-
-
-        # ----------------------------
-        # Validate Trivy Config
-        # ----------------------------
-
-        if [ -n "${{ env.TRIVY_CONFIG }}" ]; then
-
-
-          if [ -f "${{ env.TRIVY_CONFIG }}" ]; then
-
-            echo "✅ Trivy config found"
-
-          else
-
-            echo "❌ Trivy config missing"
-
-            FAILED=1
-
-          fi
-
-        fi
-
-
-
-        # ----------------------------
-        # Validate Checkov Config
-        # ----------------------------
-
-        if [ -n "${{ env.CHECKOV_CONFIG }}" ]; then
-
-
-          if [ -f "${{ env.CHECKOV_CONFIG }}" ]; then
-
-            echo "✅ Checkov config found"
-
-          else
-
-            echo "❌ Checkov config missing"
-
-            FAILED=1
-
-          fi
-
-        fi
-
-
-
-        # ----------------------------
-        # Validate Severity Input
-        # ----------------------------
-
-        ALLOWED_LEVELS="CRITICAL HIGH MEDIUM LOW UNKNOWN"
-
-
-        for LEVEL in $(echo "${{ inputs.severity }}" | tr ',' ' ')
-        do
-
-          if [[ ! " ${ALLOWED_LEVELS} " =~ " ${LEVEL} " ]]; then
-
-            echo "❌ Invalid severity value: ${LEVEL}"
-
-            echo "Allowed values:"
-            echo "${ALLOWED_LEVELS}"
-
-            FAILED=1
-
-          fi
-
-        done
-
-
-
-
-        # ----------------------------
-        # Validate Fail Policy
-        # ----------------------------
-
-        if [[ "${{ inputs.fail_policy }}" != "true" &&
-              "${{ inputs.fail_policy }}" != "false" ]];
-
-        then
-
-          echo "❌ fail_policy must be true or false"
-
-          FAILED=1
-
-        fi
-
-
-
-        # ----------------------------
-        # Final Validation Result
-        # ----------------------------
-
-        if [ "$FAILED" -eq 1 ]; then
-
-          echo ""
-          echo "❌ NoyanSecOps validation failed"
-          exit 1
-
-        fi
-
-
-        echo ""
-        echo "✅ NoyanSecOps validation completed successfully"
 
 # ==================================
 # Cache
@@ -304,7 +137,6 @@ runs:
 
         path: |
           ~/.cache/trivy
-
         key: trivy-${{ runner.os }}-${{ inputs.trivy_version }}
 
 
@@ -313,10 +145,8 @@ runs:
       if: inputs.run_semgrep == 'true'
       uses: actions/cache@v4
       with:
-
         path: |
           ~/.semgrep
-
         key: semgrep-${{ runner.os }}
 
 
@@ -325,14 +155,9 @@ runs:
       if: inputs.run_checkov == 'true'
       uses: actions/cache@v4
       with:
-
         path: |
           ~/.cache/pip
-
         key: pip-${{ runner.os }}
-
-
-
 
 
 # ==================================
@@ -343,88 +168,170 @@ runs:
     - name: Discover Security Config Files
       shell: bash
       run: |
-
-
         echo "Searching security configuration files..."
-
-
         if [ -z "${{ inputs.semgrep_config }}" ]; then
-
           if [ -f ".semgrep.yml" ]; then
-
             echo "SEMGRP_CONFIG=.semgrep.yml" >> $GITHUB_ENV
-
           elif [ -f ".semgrep.yaml" ]; then
-
             echo "SEMGRP_CONFIG=.semgrep.yaml" >> $GITHUB_ENV
-
           fi
-
         else
-
           echo "SEMGRP_CONFIG=${{ inputs.semgrep_config }}" >> $GITHUB_ENV
-
         fi
 
 
 
         if [ -z "${{ inputs.trivy_config }}" ]; then
-
           if [ -f "trivy.yaml" ]; then
-
             echo "TRIVY_CONFIG=trivy.yaml" >> $GITHUB_ENV
-
           elif [ -f ".trivy.yaml" ]; then
-
             echo "TRIVY_CONFIG=.trivy.yaml" >> $GITHUB_ENV
-
           fi
-
         else
-
           echo "TRIVY_CONFIG=${{ inputs.trivy_config }}" >> $GITHUB_ENV
-
         fi
 
 
 
         if [ -z "${{ inputs.checkov_config }}" ]; then
-
           if [ -f ".checkov.yml" ]; then
-
             echo "CHECKOV_CONFIG=.checkov.yml" >> $GITHUB_ENV
-
           elif [ -f ".checkov.yaml" ]; then
-
             echo "CHECKOV_CONFIG=.checkov.yaml" >> $GITHUB_ENV
-
           fi
-
         else
-
           echo "CHECKOV_CONFIG=${{ inputs.checkov_config }}" >> $GITHUB_ENV
-
         fi
 
 
 
         if [ -z "${{ inputs.hadolint_config }}" ]; then
-
           if [ -f ".hadolint.yaml" ]; then
-
             echo "HADOLINT_CONFIG=.hadolint.yaml" >> $GITHUB_ENV
-
           elif [ -f ".hadolint.yml" ]; then
-
             echo "HADOLINT_CONFIG=.hadolint.yml" >> $GITHUB_ENV
-
           fi
-
         else
-
           echo "HADOLINT_CONFIG=${{ inputs.hadolint_config }}" >> $GITHUB_ENV
-
         fi
+
+
+# ==================================
+# NoyanSecOps Validation Layer
+# ==================================
+
+    - name: Validate NoyanSecOps Configuration
+      shell: bash
+      run: |
+        echo "🔎 Starting NoyanSecOps validation..."
+        FAILED=0
+
+
+        # ----------------------------
+        # Validate Report Directory
+        # ----------------------------
+
+        if [ ! -d "noyansecops-results" ]; then
+          echo "❌ Report directory missing"
+          FAILED=1
+        else
+          echo "✅ Report directory available"
+        fi
+
+
+
+        # ----------------------------
+        # Validate Semgrep Config
+        # ----------------------------
+        if [ -n "${{ env.SEMGRP_CONFIG }}" ]; then
+          if [ -f "${{ env.SEMGRP_CONFIG }}" ]; then
+            echo "✅ Semgrep config found:"
+            echo "${{ env.SEMGRP_CONFIG }}"
+          else
+            echo "❌ Semgrep config not found:"
+            echo "${{ env.SEMGRP_CONFIG }}"
+            FAILED=1
+          fi
+        fi
+
+
+
+        # ----------------------------
+        # Validate Trivy Config
+        # ----------------------------
+
+        if [ -n "${{ env.TRIVY_CONFIG }}" ]; then
+          if [ -f "${{ env.TRIVY_CONFIG }}" ]; then
+            echo "✅ Trivy config found"
+          else
+            echo "❌ Trivy config missing"
+            FAILED=1
+          fi
+        fi
+
+
+
+        # ----------------------------
+        # Validate Checkov Config
+        # ----------------------------
+
+        if [ -n "${{ env.CHECKOV_CONFIG }}" ]; then
+          if [ -f "${{ env.CHECKOV_CONFIG }}" ]; then
+            echo "✅ Checkov config found"
+          else
+            echo "❌ Checkov config missing"
+            FAILED=1
+          fi
+        fi
+
+
+
+        # ----------------------------
+        # Validate Severity Input
+        # ----------------------------
+
+        ALLOWED_LEVELS="CRITICAL HIGH MEDIUM LOW UNKNOWN"
+        for LEVEL in $(echo "${{ inputs.severity }}" | tr ',' ' ')
+        do
+          if [[ ! " ${ALLOWED_LEVELS} " =~ " ${LEVEL} " ]]; then
+            echo "❌ Invalid severity value: ${LEVEL}"
+            echo "Allowed values:"
+            echo "${ALLOWED_LEVELS}"
+            FAILED=1
+          fi
+        done
+
+
+
+
+        # ----------------------------
+        # Validate Fail Policy
+        # ----------------------------
+
+        if [[ "${{ inputs.fail_policy }}" != "true" &&
+              "${{ inputs.fail_policy }}" != "false" ]];
+        then
+          echo "❌ fail_policy must be true or false"
+          FAILED=1
+        fi
+
+
+
+        # ----------------------------
+        # Final Validation Result
+        # ----------------------------
+
+        if [ "$FAILED" -eq 1 ]; then
+          echo ""
+          echo "❌ NoyanSecOps validation failed"
+          exit 1
+        fi
+
+
+        echo ""
+        echo "✅ NoyanSecOps validation completed successfully"
+
+
 # ==================================
 # Secret Scanning - Gitleaks
 # ==================================
@@ -435,14 +342,9 @@ runs:
       uses: gitleaks/gitleaks-action@v2
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
       env:
-
         GITHUB_TOKEN: ${{ inputs.github_token }}
-
         GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
-
         GITLEAKS_ENABLE_SUMMARY: true
-
-
 
 
 
@@ -454,13 +356,9 @@ runs:
     - name: Run Semgrep SAST
       if: inputs.run_semgrep == 'true'
       uses: semgrep/semgrep-action@v1
-
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
-
       with:
-
         generateSarif: "1"
-
         config: ${{ env.SEMGRP_CONFIG != '' && env.SEMGRP_CONFIG || 'p/default' }}
 
 
@@ -468,13 +366,9 @@ runs:
     - name: Upload Semgrep SARIF
       if: always() && inputs.run_semgrep == 'true'
       uses: github/codeql-action/upload-sarif@v4
-
       continue-on-error: true
-
       with:
-
         sarif_file: semgrep.sarif
-
         category: noyansecops-semgrep
 
 
@@ -491,38 +385,23 @@ runs:
       uses: aquasecurity/trivy-action@v0.20.0
 
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
-
       with:
-
         version: ${{ inputs.trivy_version }}
-
         scan-type: fs
-
         format: sarif
-
         output: noyansecops-results/trivy.sarif
-
         severity: ${{ inputs.severity }}
-
         exit-code: ${{ inputs.fail_policy == 'true' && '1' || '0' }}
-
         ignore-unfixed: true
-
         trivyignores: ${{ env.TRIVY_CONFIG }}
-
-
 
 
     - name: Upload Trivy SARIF
       if: inputs.run_trivy == 'true'
       uses: github/codeql-action/upload-sarif@v4
-
       continue-on-error: true
-
       with:
-
         sarif_file: noyansecops-results/trivy.sarif
-
         category: noyansecops-trivy
 
 
@@ -536,41 +415,22 @@ runs:
 
     - name: Run Checkov IaC Scanner
       if: inputs.run_checkov == 'true'
-
       uses: bridgecrewio/checkov-action@v12.1347.0
-
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
-
       with:
-
-
         directory: .
-
-
         output_format: sarif
-
-
         output_file_path: noyansecops-results/checkov.sarif
-
-
         soft_fail: ${{ inputs.fail_policy != 'true' }}
-
 
 
     - name: Upload Checkov SARIF
       if: inputs.run_checkov == 'true'
-
       uses: github/codeql-action/upload-sarif@v4
-
       continue-on-error: true
-
       with:
-
         sarif_file: noyansecops-results/checkov.sarif
-
         category: noyansecops-checkov
-
-
 
 
 
@@ -580,48 +440,24 @@ runs:
 
 
     - name: Run Hadolint Dockerfile Security Scan
-
       if: inputs.run_hadolint == 'true'
-
       uses: hadolint/hadolint-action@v3.1.0
-
-
       continue-on-error: ${{ inputs.fail_policy != 'true' }}
-
-
       with:
-
-
         recursive: true
-
-
         format: sarif
-
-
         output-file: noyansecops-results/hadolint.sarif
-
-
         no-fail: ${{ inputs.fail_policy != 'true' }}
 
 
 
     - name: Upload Hadolint SARIF
-
       if: inputs.run_hadolint == 'true'
-
       uses: github/codeql-action/upload-sarif@v4
-
-
       continue-on-error: true
-
-
       with:
-
         sarif_file: noyansecops-results/hadolint.sarif
-
         category: noyansecops-hadolint
-
-
 
 
 
@@ -631,23 +467,11 @@ runs:
 
 
     - name: Upload NoyanSecOps Reports
-
       uses: actions/upload-artifact@v4
-
-
       with:
-
-
         name: noyansecops-security-reports
-
-
         path: noyansecops-results/
-
-
         retention-days: ${{ inputs.retention_days }}
-
-
-
 
 
 
@@ -657,56 +481,22 @@ runs:
 
 
     - name: Generate Security Summary
-
       shell: bash
-
       run: |
-
-
         echo "# 🛡️ NoyanSecOps Security Report" >> $GITHUB_STEP_SUMMARY
-
-
         echo "" >> $GITHUB_STEP_SUMMARY
-
-
         echo "## Scanner Status" >> $GITHUB_STEP_SUMMARY
-
-
         echo "| Scanner | Enabled |" >> $GITHUB_STEP_SUMMARY
-
-
         echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
-
-
         echo "| Gitleaks | ${{ inputs.run_gitleaks }} |" >> $GITHUB_STEP_SUMMARY
-
-
         echo "| Semgrep | ${{ inputs.run_semgrep }} |" >> $GITHUB_STEP_SUMMARY
-
-
         echo "| Trivy | ${{ inputs.run_trivy }} |" >> $GITHUB_STEP_SUMMARY
-
-
         echo "| Checkov | ${{ inputs.run_checkov }} |" >> $GITHUB_STEP_SUMMARY
-
-
         echo "| Hadolint | ${{ inputs.run_hadolint }} |" >> $GITHUB_STEP_SUMMARY
-
-
-
         echo "" >> $GITHUB_STEP_SUMMARY
-
-
         echo "Severity: ${{ inputs.severity }}" >> $GITHUB_STEP_SUMMARY
-
-
         echo "" >> $GITHUB_STEP_SUMMARY
-
-
         echo "Fail Policy: ${{ inputs.fail_policy }}" >> $GITHUB_STEP_SUMMARY
-
-
-
 
 
 
@@ -716,25 +506,13 @@ runs:
 
 
     - name: Apply NoyanSecOps Security Gate
-
       if: inputs.fail_policy == 'true'
-
       shell: bash
-
       run: |
-
-
         if grep -r "CRITICAL\|HIGH" noyansecops-results/
-
         then
-
           echo "❌ Security Gate Failed"
-
           exit 1
-
-
         else
-
           echo "✅ Security Gate Passed"
-
         fi
